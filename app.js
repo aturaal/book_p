@@ -9,25 +9,25 @@ const { createSecretKey } = require('node:crypto');
 const { JsonWebTokenError } = require('jsonwebtoken');
 const jwt = require('jsonwebtoken');
 const {verifyjwt , router} = require('./admin-panel/login.js');
-const controller = require('./controller')
+const router2 = require('./controller')
 const cookieParser = require('cookie-parser')
 const cors = require('cors');
-
-router.use(cookieParser())
-app.use(controller)
-
 app.use(cors());
 app.use(bodyParser.json());
-
-
+app.use(cookieParser())
+app.use(router2)
 app.use(router)
 app.use(bodyParser.urlencoded({ extended: false }));
-
 const server = require('node:http').createServer(app);
-
-
-
-
-
-
 app.listen(3000 || process.env.PORT)
+
+
+
+
+
+
+
+
+
+
+

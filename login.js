@@ -6,60 +6,66 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const database = require('../database');
 const env = require('dotenv');
+const { json } = require('body-parser');
 env.config();
 const SECRET = process.env.JWT;
 const SECRET2 = process.env.JWT2;
 
 // Middleware to verify user token
 const verifyjwt = function(req, res, next) {
-  const token = req.headers.cookie ? req.headers.cookie.split("=")[1] : null;
+   const token = req.cookies.token
+
 
   if (!token) {
-     res.status(401).json({ error: "Unauthorized User!" });
+     res
+     .status(401).json({ error: "Unauthorized User!" });
   }
 
   try {
     jwt.verify(token, SECRET);
     next();
   } catch (error) {
-    res.status(401).json({ error: "Unauthorized User!" });
+    res
+    .status(401).json({ error: "Unauthorized User!" });
   }
 };
 
 const verifySuperadminJWT = function(req, res, next) {
-  const token = req.headers.cookie ? req.headers.cookie.split("=")[1] : null;
+   const token = req.cookies.admintoken
+
 
   if (!token) {
-     res.status(401).json({ error: "Unauthorized User!" });
+     res
+     .status(401).json({ error: "Unauthorized User!" });
   }
 
   try {
     jwt.verify(token, SECRET2);
     next();
   } catch (error) {
-    res.status(401).json({ error: "Unauthorized User!" });
+    res
+    .status(401).json({ error: "Unauthorized User!" });
   }
 };
 
 const verifyEitherJWT = function(req, res, next) {
-  const token = req.headers.cookie ? req.headers.cookie.split("=")[1] : null;
-
+   console.log(req.cookies)
+   const token = req.cookies.token || req.cookies.admintoken
   if (!token) {
-     res.status(401).json({ error: "Unauthorized User!" });
+     res
+     .status(401).json({ error: "Unauthorized User!" });
   }
 
   try {
     jwt.verify(token, SECRET);
     next();
   } catch (error) {
-    try {
-      jwt.verify(token, SECRET2);
-      next();
-    } catch (error) {
-      res.status(401).json({ error: "Unauthorized User!" });
+    res
+    .status(403)
+    .send('Forbidden Request 401')
     }
   }
-};
+
 
 router.post("/register", async (req, res, next) => {
    try {
@@ -69,14 +75,16 @@ router.post("/register", async (req, res, next) => {
        password: hashedPassword,
        role: req.body.role
      });
-     res.json("Successfully Registered!");
+     res
+     .json("Successfully Registered!");
    } catch (error) {
      next(error);
    }
  });
  
  router.get("/login", (req, res) => {
-   res.sendFile("login.html", { root: __dirname });
+   res
+   .sendFile("login.html", { root: __dirname });
  });
  
  router.post("/login", async (req, res, next) => {
@@ -99,7 +107,6 @@ router.post("/register", async (req, res, next) => {
      next(error);
    }
  });
- 
- 
+
  module.exports = { router, verifyjwt, verifySuperadminJWT, verifyEitherJWT };
  
