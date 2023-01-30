@@ -1,15 +1,12 @@
 const knex = require('knex');
 const router = require('express').Router();
 const bodyParser = require('body-parser');
-const cors = require('cors');
 const bcrypt = require('bcrypt');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const database = require('../database');
 const env = require('dotenv');
-
 env.config();
-
 const SECRET = process.env.JWT;
 const SECRET2 = process.env.JWT2;
 
@@ -18,7 +15,7 @@ const verifyjwt = function(req, res, next) {
   const token = req.headers.cookie ? req.headers.cookie.split("=")[1] : null;
 
   if (!token) {
-    return res.status(401).json({ error: "Unauthorized User!" });
+     res.status(401).json({ error: "Unauthorized User!" });
   }
 
   try {
@@ -33,7 +30,7 @@ const verifySuperadminJWT = function(req, res, next) {
   const token = req.headers.cookie ? req.headers.cookie.split("=")[1] : null;
 
   if (!token) {
-    return res.status(401).json({ error: "Unauthorized User!" });
+     res.status(401).json({ error: "Unauthorized User!" });
   }
 
   try {
@@ -48,7 +45,7 @@ const verifyEitherJWT = function(req, res, next) {
   const token = req.headers.cookie ? req.headers.cookie.split("=")[1] : null;
 
   if (!token) {
-    return res.status(401).json({ error: "Unauthorized User!" });
+     res.status(401).json({ error: "Unauthorized User!" });
   }
 
   try {
@@ -63,9 +60,6 @@ const verifyEitherJWT = function(req, res, next) {
     }
   }
 };
-
-router.use(cors());
-router.use(bodyParser.json());
 
 router.post("/register", async (req, res, next) => {
    try {
@@ -87,32 +81,25 @@ router.post("/register", async (req, res, next) => {
  
  router.post("/login", async (req, res, next) => {
    try {
-     const mail = await database("admins1")
-       .where({ mail: req.body.mail })
-       .first();
-     if (!mail) {
-        res.status(401).json({
-         error: "Wrong credentials"
-       });
-     }
+     const mail = await database("admins1").where({ mail: req.body.mail }).first();
+     if (!mail)  res.status(401).json({ error: "Wrong credentials" });
+ 
      const isAuthenticated = await bcrypt.compare(req.body.password, mail.password);
-     if (!isAuthenticated) {
-        res.status(401).json({
-         error: "Unauthorized User!"
-       });
-     }
-     const user = await database("admins1")
-       .where({ mail: req.body.mail })
-       .first();
-     const token = await jwt.sign(user, user.role === "superadmin" ? SECRET2 : SECRET, { expiresIn: "7d" });
+     if (!isAuthenticated)  res.status(401).json({ error: "Unauthorized User!" });
+ 
+     const user = mail;
+     const secret = user.role === "superadmin" ? SECRET2 : SECRET;
+     const token = await jwt.sign(user, secret, { expiresIn: "7d" });
+ 
      res
-     .cookie("token", token, { httpOnly: true, sameSite: "strict" })
-     .status(200)
-     .json({ token });
+       .cookie("token", token, { httpOnly: true, sameSite: "strict" })
+       .status(200)
+       .json({ token });
    } catch (error) {
      next(error);
    }
  });
+ 
  
  module.exports = { router, verifyjwt, verifySuperadminJWT, verifyEitherJWT };
  

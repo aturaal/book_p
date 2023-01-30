@@ -11,8 +11,13 @@ const jwt = require('jsonwebtoken');
 const {verifyjwt , router} = require('./admin-panel/login.js');
 const controller = require('./controller')
 const cookieParser = require('cookie-parser')
+const cors = require('cors');
+
 router.use(cookieParser())
 app.use(controller)
+
+app.use(cors());
+app.use(bodyParser.json());
 
 
 app.use(router)
