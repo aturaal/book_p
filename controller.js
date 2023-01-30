@@ -1,139 +1,136 @@
 const express = require('express');
-const controller = express.Router()
-const knex = require('knex')
-const path = require('node:path');
-const { json } = require('express');
-const bodyParser = require('body-parser');
-const jwt = require('jsonwebtoken');
 const database = require('./database');
-const {verifyjwt , verifySuperadminJWT, verifyEitherJWT} = require('./admin-panel/login');
-const { verify } = require('node:crypto');
+const {verifyEitherJWT , verifySuperadminJWT, verifyjwt} = require('./admin-panel/login')
 
-controller.use(
-    bodyParser.json({
-      limit: '100MB',
-    }),
-  );
+const controller = express.Router();
 
-
-
-  controller.post('/postbook', [verifySuperadminJWT] , (req, res) => {
+//post a book -> admin
+controller.post('/postbook', [verifySuperadminJWT], async (req, res) => {
+  try {
     const books = req.body;
     if (!Array.isArray(books)) {
-      res.status(400).send({ error: 'SEND IN ARRAY BRO' });
-      return;
+      return res.status(400).send({ error: 'Input must be an array.' });
     }
-    database.transaction((trx) => {
-        return trx.batchInsert('books', books)
-        .then(trx.commit)
-        .catch(trx.rollback)
-    })
-    .then(() => {
-        res.status(201).send({ message: 'Books added ' });
-    })
-    .catch((err) => {
-        console.log(err);
-        res.status(400).send({ error: 'error adding books' });
+    await database.transaction(async (trx) => {
+      await trx.batchInsert('books', books);
     });
-  });
+    return res.status(201).send({ message: 'Books added.' });
+  } catch (err) {
+    console.error(err);
+    return res.status(400).send({ error: 'Error adding books.' });
+  }
+});
 
-  //add books -> admin
-  controller.delete('/delete/:isbn' , [verifySuperadminJWT], (req, res) => {
-    const {isbn} = req.params
-    database('books')
-    .where({ISBN : isbn})
-    .delete()
-    .then(deletedbook => {
-      res.send('Book successfully deleted')
-    })
-  })
+//delete a book -> admin
+controller.delete('/delete/:isbn', [verifySuperadminJWT], async (req, res) => {
+  try {
+    const { isbn } = req.params;
+    const deletedbook = await database('books')
+      .where({ ISBN: isbn })
+      .delete();
+    return res.send('Book successfully deleted');
+  } catch (err) {
+    console.error(err);
+    return res.status(400).send({ error: 'Error deleting book.' });
+  }
+});
 
-  controller.get('/find/:isbn' , [verifyEitherJWT] , (req, res) => {
-    const {isbn} = req.params
-    database('books')
-    .where({ISBN : isbn})
-    .then(book => {
-      res.send(book)
-    })
-  })
+//find a book -> admin/user
+controller.get('/find/:isbn', [verifyEitherJWT], async (req, res) => {
+  try {
+    const { isbn } = req.params;
+    const book = await database('books')
+      .where({ ISBN: isbn })
+      .first();
+    return res.send(book);
+  } catch (err) {
+    console.error(err);
+    return res.status(400).send({ error: 'Error finding book.' });
+  }
+});
 
+//edit a book -> admin
+controller.put('/editbook/:isbn', [verifySuperadminJWT], async (req, res) => {
+  try {
+    const { isbn } = req.params;
+    const { Bookname, Author, avail, rentedby } = req.body;
+    await database('books')
+      .where({ ISBN: isbn })
+      .update({ Bookname, Author, avail, rentedby });
+    const books = await database.select().from('books');
+    return res.send(books);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).send({ error: 'Error updating book.' });
+  }
+});
 
-//edit a book -> admin - PUT REQUEST
-controller.put('/editbook/:isbn', [verifySuperadminJWT], (req, res) => {
-  const { isbn } = req.params;
-  const { Bookname, Author, avail, rentedby } = req.body;
-  database('books')
-    .where({ ISBN : isbn })
-    .update({ Bookname, Author, avail, rentedby})
-    .then(() => {
-      database.select().from('books').then((books) => {
-        res.send(books);
-      });
-    })
-    .catch((error) => {
-      res.status(500).send({ error });
-    });
+controller.get('/availablebooks', [verifyEitherJWT], async (req, res) => {
+  try {
+    const books = await database('books')
+      .select('Bookname', 'Author', 'ISBN', 'avail')
+      .where({ avail: 'Y' });
+    return res.status(200).send(books);
+  } catch (error) {
+    return res.status(500).send({ error: 'Error fetching books' });
+  }
 });
 
 
 
-  controller.get('/availablebooks' , [verifyEitherJWT] , (req, res) => {
-    database('books')
-    .select('Bookname' , 'Author' , 'ISBN' , 'avail')
-      .where({ avail: 'Y' })
-      .then((books) => {
-        res.send(books);
-      })
-      .catch((error) => {
-        res.status(500).send({ error });
-      });
-  });
+// Rent a book -> user
+controller.put("/rentbook/:isbn", [verifyEitherJWT], async (req, res) => {
+  try {
+    const { isbn } = req.params;
+    const { rentedby } = req.body;
 
-controller.put('/rentbook/:isbn', [verifyEitherJWT], (req, res) => {
-  const { isbn } = req.params;
-  const { rentedby } = req.body;
-  database('books')
-    .where({ ISBN : isbn })
-    .select('avail')
-    .first()
-    .then((book) => {
-      if (book.avail === 'N') {
-        res.status(400).send({ error: 'Book already rented' });
-        return;
-      }
-      database('books')
-        .where({ ISBN : isbn })
-        .update({ avail: 'N' , rentedby})
-        .then((rentedbook) => {
-          res.status(200).send({rentedbook});
-        });
-    })
-    .catch((error) => {
-      res.status(500).send({ error });
-    });
+    // check if the book is already rented
+    const book = await database("books")
+      .where({ ISBN: isbn })
+      .select("avail")
+      .first();
+
+    if (book.avail === "N") {
+      return res.status(400).send({ error: "Book already rented" });
+    }
+
+    // update the book to rented
+    const rentedbook = await database("books")
+      .where({ ISBN: isbn })
+      .update({ avail: "N", rentedby });
+
+    res.status(200).send({ rentedbook });
+  } catch (error) {
+    res.status(500).send({ error });
+  }
 });
 
-controller.put('/returnbook/:isbn' , [verifyEitherJWT], (req, res) => {
-  const {isbn} = req.params
-  database('books')
-  .where({ISBN : isbn})
-  .select('avail')
-  .first()
-  .then((book) => {
-    if(book.avail === 'Y') {
-      res.send('You cannot return a book which is already available')
-      return;
+// Return a book -> admin/user
+controller.put("/returnbook/:isbn", [verifyEitherJWT], async (req, res) => {
+  try {
+    const { isbn } = req.params;
+
+    // check if the book is already available
+    const book = await database("books")
+      .where({ ISBN: isbn })
+      .select("avail")
+      .first();
+
+    if (book.avail === "Y") {
+      return res.status(400).send({ error: "Book is already available" });
     }
-    database('books')
-    .where({ISBN : isbn})
-    .select('avail')
-    .update({ avail: 'Y' , rentedby: null})
-    .then((returnedbook) => {
-      res.send({returnedbook})
-    })
-    
-  })
-})
+
+    // update the book to available
+    const returnedbook = await database("books")
+      .where({ ISBN: isbn })
+      .update({ avail: "Y", rentedby: null });
+
+    res.status(200).send({ returnedbook });
+  } catch (error) {
+    res.status(500).send({ error });
+  }
+});
+
 module.exports = controller;
 
 

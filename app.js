@@ -10,6 +10,8 @@ const { JsonWebTokenError } = require('jsonwebtoken');
 const jwt = require('jsonwebtoken');
 const {verifyjwt , router} = require('./admin-panel/login.js');
 const controller = require('./controller')
+const cookieParser = require('cookie-parser')
+router.use(cookieParser())
 app.use(controller)
 
 
