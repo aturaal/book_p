@@ -1,7 +1,10 @@
 const express = require('express');
 const database = require('./database');
-const {verifyEitherJWT , verifySuperadminJWT, verifyjwt} = require('./admin-panel/login')
+const {verifyEitherJWT , verifySuperadminJWT, verifyjwt} = require('./admin-panel/login');
+const jwt = require('jsonwebtoken');
 const router2 = express.Router();
+const env = require('dotenv')
+env.config();
 
 router2.post('/postbook', [verifySuperadminJWT], async (req, res) => {
   try {
@@ -69,12 +72,18 @@ router2.get('/available', [verifyEitherJWT], async (req, res) => {
   }
 });
 
-// Rent a book -> user
 router2.put("/rentbook/:isbn", [verifyEitherJWT], async (req, res) => {
-  console.log(req.body)
   try {
+    
     const { isbn } = req.params;
-    const { rentedby } = req.body;
+    const decoded = jwt.verify(req.cookies.token , process.env.JWT || process.env.JWT2)
+    const rentedby = decoded.mail
+
+    // Check if rentedby is not empty here
+    if (!rentedby) {
+      res.status(400).send({ error: "Authorization missing" });
+      return;
+    }
 
     // Check if book is available
     const book = await database("books")
@@ -82,19 +91,31 @@ router2.put("/rentbook/:isbn", [verifyEitherJWT], async (req, res) => {
       .select("avail")
       .first();
     if (book.avail === "N") {
-       res.status(400).send({ error: "Book already rented" });
+       res
+       .status(400)
+       .send({ error: "Book already rented"});
+       return;
     }
 
     // Update book to rented
+    await database("books")
+      .where({ ISBN: isbn })
+      .update({ avail: "N" });
+
+    await database("books")
+      .where({ ISBN: isbn })
+      .update({ rentedby: rentedby });
+
     const rentedbook = await database("books")
       .where({ ISBN: isbn })
-      .update({ avail: "N", rentedby });
+      .select("*")
+      .first();
 
     res
-    .status(200).send({ rentedbook });
+      .status(200)
+      .send({ rentedbook });
   } catch (error) {
-    res
-    .status(500).send({ error });
+    res.status(500).send({ error });
     console.log(error)
   }
 });
@@ -103,6 +124,15 @@ router2.put("/rentbook/:isbn", [verifyEitherJWT], async (req, res) => {
 router2.put("/returnbook/:isbn", [verifyEitherJWT], async (req, res) => {
   try {
     const { isbn } = req.params;
+    const decoded = jwt.verify(req.cookies.token , process.env.JWT || process.env.JWT2)
+    const rentedby = decoded.mail
+
+    if(!rentedby) {
+      res
+      .status(400)
+      .send({error: "Authorization Missing!"})
+      return;
+    }
 
     // Check if book is rented
     const book = await database("books")
@@ -113,6 +143,20 @@ router2.put("/returnbook/:isbn", [verifyEitherJWT], async (req, res) => {
     if (book.avail === "Y") {
       res
       .status(400).send({ error: "Book is already available" });
+      return;
+    }
+
+    const rentcheck = await database("books")
+    .where({ISBN: isbn})
+    .select("rentedby")
+    .first();
+
+    if (rentcheck.rentedby != rentedby) {
+      console.log(rentcheck.rentedby)
+      res
+      .status(400)
+      .send({error: 'This book is not rented by you, you cannot return it!'})
+      return;
     }
 
     // Update book to available
@@ -121,7 +165,7 @@ router2.put("/returnbook/:isbn", [verifyEitherJWT], async (req, res) => {
       .update({ avail: "Y", rentedby: null });
 
     res
-    .status(200).send({ returnedbook });
+    .status(200).send({ returnedbook , rentedby});
   } catch (error) {
     res
     .status(500).send({ error });
