@@ -1,6 +1,6 @@
 const express = require('express');
-const database = require('/database');
-const {verifyEitherJWT , verifySuperadminJWT, verifyjwt, router} = require('./admin-panel/login');
+const database = require('./database');
+const {verifyEitherJWT , verifySuperadminJWT, verifyjwt, router} = require('./login');
 const jwt = require('jsonwebtoken');
 const router2 = express.Router();
 const env = require('dotenv')

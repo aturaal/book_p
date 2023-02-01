@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const database = require('/database');
+const database = require('./database');
 const env = require('dotenv');
 env.config();
 const SECRET = process.env.JWT;
