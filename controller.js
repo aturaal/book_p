@@ -1,10 +1,28 @@
 const express = require('express');
-const database = require('./database');
-const {verifyEitherJWT , verifySuperadminJWT, verifyjwt} = require('./admin-panel/login');
+const database = require('/database');
+const {verifyEitherJWT , verifySuperadminJWT, verifyjwt, router} = require('./admin-panel/login');
 const jwt = require('jsonwebtoken');
 const router2 = express.Router();
 const env = require('dotenv')
 env.config();
+
+router.get('/allbooks' , [verifyEitherJWT] , async (req, res) => {
+
+  try {
+
+  const allbooks = await database("books")
+  .select('Bookname', 'Author' , 'ISBN' , 'avail')
+  .then((allb) => {
+    res.send(allb)
+  })
+
+}
+catch{
+  res.status(401).send("Unauth")
+  return;
+}
+
+})
 
 router2.post('/postbook', [verifySuperadminJWT], async (req, res) => {
   try {

@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const database = require('../database');
+const database = require('/database');
 const env = require('dotenv');
 env.config();
 const SECRET = process.env.JWT;
@@ -56,11 +56,19 @@ const verifyEitherJWT = function(req, res, next) {
       res.status(401).json({ error: "Unauthorized User!" });
     }
   }
-};
+}; 
 
 router.post("/register", async (req, res, next) => {
    try {
      const hashedPassword = await bcrypt.hash(req.body.password, 10);
+     const mail = req.body.mail
+     const alreadyreg = await database("admins1")
+     .where({mail : mail})
+     .select("mail")
+     .first()
+     if(alreadyreg) {
+       return res.status(401).send('User already registered!');
+     }
      await database("admins1").insert({
        mail: req.body.mail,
        password: hashedPassword,
@@ -71,6 +79,7 @@ router.post("/register", async (req, res, next) => {
      next(error);
    }
  });
+
  
  router.get("/login", (req, res) => {
    res.sendFile("login.html", { root: __dirname });
@@ -78,13 +87,17 @@ router.post("/register", async (req, res, next) => {
  
  router.post("/login", async (req, res, next) => {
    try {
-     const mail = await database("admins1").where({ mail: req.body.mail }).first();
-     if (!mail)  res.status(401).json({ error: "Wrong credentials" });
+     const mail = req.body.mail;
+     const password = req.body.password;
  
-     const isAuthenticated = await bcrypt.compare(req.body.password, mail.password);
-     if (!isAuthenticated)  res.status(401).json({ error: "Unauthorized User!" });
+     const user = await database("admins1")
+       .where({ mail: mail })
+       .first();
+     if (!user) return res.status(401).json({ error: "Wrong credentials" });
  
-     const user = mail;
+     const isPasswordMatch = await bcrypt.compare(password, user.password);
+     if (!isPasswordMatch) return res.status(401).json({ error: "Unauthorized User!" });
+ 
      const secret = user.role === "superadmin" ? SECRET2 : SECRET;
      const token = await jwt.sign(user, secret, { expiresIn: "7d" });
  
